@@ -1,11 +1,13 @@
 const ytdl = require("ytdl-core");
+const search = require('youtube-search');
 
 module.exports = {
   name: "play",
   description: "Play a song in your channel!",
   async execute(message) {
     try {
-      const args = message.content.split(" ");
+      let [command, ...args] = message.content.split(' ');
+      args = args.join(' ')
       const queue = message.client.queue;
       const serverQueue = message.client.queue.get(message.guild.id);
 
@@ -21,7 +23,18 @@ module.exports = {
         );
       }
 
-      const songInfo = await ytdl.getInfo(args[1]);
+      if (!args.includes("https://")) {
+        const opts = {
+          maxResults: 1,
+          key: process.env.GOOGLE_KEY,
+          type: ["video"]
+        };
+
+        const searchResults = await search(args, opts)
+        args = searchResults.results[0].link
+      }
+
+      const songInfo = await ytdl.getInfo(args);
       const song = {
         title: songInfo.videoDetails.title,
         url: songInfo.videoDetails.video_url
