@@ -1,5 +1,18 @@
 const ytdl = require("ytdl-core");
 const search = require('youtube-search');
+var SpotifyWebApi = require('spotify-web-api-node');
+
+var spotifyApi = new SpotifyWebApi({
+  clientId: '819f507ad2dd41848f7125920d9b1a0e',
+  clientSecret: process.env.SPOTIFY_KEY,
+  redirectUri: 'https://mamarracho-bot.herokuapp.com/'
+});
+
+spotifyApi.clientCredentialsGrant().then(
+  function (data) {
+    console.log('The access token is ' + data.body['access_token']);
+    spotifyApi.setAccessToken(data.body['access_token']);
+  });
 
 module.exports = {
   name: "play",
@@ -23,13 +36,21 @@ module.exports = {
         );
       }
 
-      if (!args.includes("https://")) {
-        const opts = {
-          maxResults: 1,
-          key: process.env.GOOGLE_KEY,
-          type: ["video"]
-        };
+      const opts = {
+        maxResults: 1,
+        key: process.env.GOOGLE_KEY,
+        type: ["video"]
+      };
 
+      if (args.includes('https://open.spotify.com/track/')) {
+        const queryString = args.split('/')
+        const id = queryString[queryString.length - 1].split('?')[0]
+        const data = await spotifyApi.getTrack(id)
+        const searchQuery = `${data.body.name} ${data.body.artists[0].name}`
+        const searchResults = await search(searchQuery, opts)
+        args = searchResults.results[0].link
+      }
+      else if (!args.includes("https://")) {
         const searchResults = await search(args, opts)
         args = searchResults.results[0].link
       }
