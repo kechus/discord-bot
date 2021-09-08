@@ -14,6 +14,12 @@ spotifyApi.clientCredentialsGrant().then(
     spotifyApi.setAccessToken(data.body['access_token']);
   });
 
+const opts = {
+  maxResults: 1,
+  key: process.env.GOOGLE_KEY,
+  type: ["video"]
+};
+
 module.exports = {
   name: "play",
   description: "Play a song in your channel!",
@@ -36,30 +42,26 @@ module.exports = {
         );
       }
 
-      const opts = {
-        maxResults: 1,
-        key: process.env.GOOGLE_KEY,
-        type: ["video"]
-      };
-
-      if (args.includes('https://open.spotify.com/track/')) {
-        const queryString = args.split('/')
-        const id = queryString[queryString.length - 1].split('?')[0]
-        const data = await spotifyApi.getTrack(id)
-        const searchQuery = `${data.body.name} ${data.body.artists[0].name}`
-        const searchResults = await search(searchQuery, opts)
-        args = searchResults.results[0].link
+      let links = [];
+      if (args.includes('https://open.spotify.com/')) {
+        links = await this.getLinksFromSpotify(args)
       }
       else if (!args.includes("https://")) {
-        const searchResults = await search(args, opts)
-        args = searchResults.results[0].link
+        const link = await this.ytSearch(args)
+        links.push(link)
+      } else {
+        links.push(args)
       }
 
-      const songInfo = await ytdl.getInfo(args);
-      const song = {
-        title: songInfo.videoDetails.title,
-        url: songInfo.videoDetails.video_url
-      };
+      const songs = []
+      for (const link of links) {
+        const songInfo = await ytdl.getInfo(link);
+        const song = {
+          title: songInfo.videoDetails.title,
+          url: songInfo.videoDetails.video_url
+        };
+        songs.push(song)
+      }
 
       if (!serverQueue) {
         const queueContruct = {
@@ -73,7 +75,9 @@ module.exports = {
 
         queue.set(message.guild.id, queueContruct);
 
-        queueContruct.songs.push(song);
+        for (const song of songs) {
+          queueContruct.songs.push(song);
+        }
 
         try {
           var connection = await voiceChannel.join();
@@ -85,15 +89,57 @@ module.exports = {
           return message.channel.send(err);
         }
       } else {
-        serverQueue.songs.push(song);
+        for (const song of songs) {
+          serverQueue.songs.push(song);
+        }
+        const message = songs.length > 1 ? "Album" : songs[0].title
         return message.channel.send(
-          `${song.title} has been added to the queue!`
+          `${message} has been added to the queue!`
         );
       }
     } catch (error) {
       console.log(error);
       message.channel.send(error.message);
     }
+  },
+
+  async ytSearch(searchQuery) {
+    return new Promise(async (resolve, reject) => {
+      const searchResults = await search(searchQuery, opts)
+      resolve(searchResults.results[0].link)
+    })
+  },
+
+  async spotifySearch(id) {
+    return new Promise(async (resolve, reject) => {
+      const data = await spotifyApi.getTrack(id)
+      const searchQuery = `${data.body.name} ${data.body.artists[0].name}`
+      const url = await this.ytSearch(searchQuery, opts)
+      resolve(url)
+    })
+  },
+
+  async getLinksFromSpotify(args) {
+    return new Promise(async (resolve, reject) => {
+      const links = []
+      const queryString = args.split('/')
+      const id = queryString[queryString.length - 1].split('?')[0]
+
+      if (queryString[3] == "track") {
+        args = await this.spotifySearch(id)
+        links.push(args)
+      } else if (queryString[3] == "album") {
+        const tracks = await spotifyApi.getAlbumTracks(id, { limit: 20 })
+
+        for (const track of tracks.body.items) {
+          const searchQuery = `${track.name} ${track.artists[0].name}`
+          const link = await this.ytSearch(searchQuery)
+          links.push(link)
+        };
+      }
+
+      resolve(links)
+    })
   },
 
   play(message, song) {
