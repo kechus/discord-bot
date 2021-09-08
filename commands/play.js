@@ -92,9 +92,9 @@ module.exports = {
         for (const song of songs) {
           serverQueue.songs.push(song);
         }
-        const message = songs.length > 1 ? "Album" : songs[0].title
+        const msg = songs.length > 1 ? "Album" : songs[0].title
         return message.channel.send(
-          `${message} has been added to the queue!`
+          `${msg} has been added to the queue!`
         );
       }
     } catch (error) {
