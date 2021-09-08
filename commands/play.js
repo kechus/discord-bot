@@ -125,14 +125,20 @@ module.exports = {
       const queryString = args.split('/')
       const id = queryString[queryString.length - 1].split('?')[0]
 
-      if (queryString[3] == "track") {
+      if (queryString[3] === "track") {
         args = await this.spotifySearch(id)
         links.push(args)
-      } else if (queryString[3] == "album") {
-        const tracks = await spotifyApi.getAlbumTracks(id, { limit: 20 })
-
+      } else if (queryString[3] === "album") {
+        const tracks = await spotifyApi.getAlbumTracks(id)
         for (const track of tracks.body.items) {
           const searchQuery = `${track.name} ${track.artists[0].name}`
+          const link = await this.ytSearch(searchQuery)
+          links.push(link)
+        };
+      } else if (queryString[3] === "playlist") {
+        const tracks = await spotifyApi.getPlaylistTracks(id, { limit: 50 })
+        for (const item of tracks.body.items) {
+          const searchQuery = `${item.track.name} ${item.track.artists[0].name}`
           const link = await this.ytSearch(searchQuery)
           links.push(link)
         };
